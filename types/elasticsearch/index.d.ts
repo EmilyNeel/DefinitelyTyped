@@ -26,8 +26,8 @@ export class Client {
     nodes: Nodes;
     snapshot: Snapshot;
     tasks: Tasks;
-    bulk(params: BulkIndexDocumentsParams, callback: (error: any, response: any) => void): void;
-    bulk(params: BulkIndexDocumentsParams): Promise<any>;
+    bulk(params: BulkIndexDocumentsParams, callback: (error: any, response: BulkIndexDocumentsResponse) => void): void;
+    bulk(params: BulkIndexDocumentsParams): Promise<BulkIndexDocumentsResponse>;
     clearScroll(params: ClearScrollParams, callback: (error: any, response: any) => void): void;
     clearScroll(params: ClearScrollParams): Promise<any>;
     count(params: CountParams, callback: (error: any, response: CountResponse) => void): void;
@@ -173,6 +173,35 @@ export interface BulkIndexDocumentsParams extends GenericParams {
     _sourceInclude?: NameList;
     pipeline?: string;
     index?: string;
+}
+
+export type BulkAction = "create" | "delete" | "index" | "update";
+
+export interface BulkActionResult {
+    _index: string;
+    _type?: string;
+    _id: number;
+    _version?: number;
+    result?: "created" | "deleted" | "updated"; // Only returned for successful operations
+    _shards?: ShardsResponse;
+    _seq_no?: number; // Only returned for successful operations
+    _primary_term?: number; // Only returned for successful operations
+    status: number; // HTTP status code for operation
+    error?: {
+        type: string;
+        reason: string;
+        index_uuid: string;
+        shard: string;
+        index: string;
+    };
+}
+
+export interface BulkIndexDocumentsResponse {
+    took: number;
+    errors: boolean;
+    items: Array<{
+        [key: string]: BulkActionResult;
+    }>;
 }
 
 export interface ClearScrollParams extends GenericParams {
@@ -392,7 +421,7 @@ export interface GetParams extends GenericParams {
     versionType?: VersionType;
     id: string;
     index: string;
-    type: string;
+    type?: string;
 }
 
 export interface GetResponse<T> {
@@ -604,28 +633,33 @@ export interface SearchParams extends GenericParams {
     type?: NameList;
 }
 
+export interface SearchResponseHitItem<T> {
+    _index: string;
+    _type?: string;
+    _id: string;
+    _score: number;
+    _source: T;
+    _version?: number;
+    _explanation?: Explanation;
+    fields?: any;
+    highlight?: any;
+    inner_hits?: any;
+    matched_queries?: string[];
+    sort?: string[];
+}
+
 export interface SearchResponse<T> {
     took: number;
     timed_out: boolean;
     _scroll_id?: string;
     _shards: ShardsResponse;
     hits: {
-        total: number;
+        total: {
+			value: number;
+			relation: "eq" | "gte";
+		};
         max_score: number;
-        hits: Array<{
-            _index: string;
-            _type: string;
-            _id: string;
-            _score: number;
-            _source: T;
-            _version?: number;
-            _explanation?: Explanation;
-            fields?: any;
-            highlight?: any;
-            inner_hits?: any;
-            matched_queries?: string[];
-            sort?: string[];
-        }>;
+        hits: Array<SearchResponseHitItem<T>>;
     };
     aggregations?: any;
 }
@@ -1298,8 +1332,9 @@ export interface IndicesPutMappingParams extends GenericParams {
   allowNoIndices?: boolean;
   expandWildcards?: ExpandWildcards;
   updateAllTypes?: boolean;
+  writeIndexOnly?: boolean;
   index: NameList;
-  type: string;
+  type?: string;
   includeTypeName?: boolean;
   body: any;
 }
